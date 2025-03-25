@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+        <color name="primaryColor">#6200EE</color>  <!-- Header and Button Color -->
+        <color name="secondaryColor">#03DAC5</color>  <!-- Result Background Color -->
+        <color name="background">#F5F5F5</color>  <!-- App Background -->
+
+
+</resources>

@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">FEProblem1</string>
+    <string name="finding_falcone">Finding Falcone</string>
+    <string name="select_a_planet">Select a Planet:</string>
+    <string name="select_a_vehicle">Select a Vehicle:</string>
+    <string name="select_planet">Select a Planet</string>
+    <string name="select_vehicle">Select a Vehicle</string>
+    <string name="find_falcone">Find Falcone</string>
+    <string name="result_will_be_shown_here">Result will be shown here</string>
+</resources>
