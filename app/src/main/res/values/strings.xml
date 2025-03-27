@@ -1,10 +1,9 @@
 <resources>
     <string name="app_name">FEProblem1</string>
-    <string name="finding_falcone">Finding Falcone</string>
-    <string name="select_a_planet">Select a Planet:</string>
-    <string name="select_a_vehicle">Select a Vehicle:</string>
-    <string name="select_planet">Select a Planet</string>
-    <string name="select_vehicle">Select a Vehicle</string>
-    <string name="find_falcone">Find Falcone</string>
-    <string name="result_will_be_shown_here">Result will be shown here</string>
+    <string name="find_falcone">Find Falcone!</string>
+    <string name="total_time">Total Time: %1$d hours</string>
+    <string name="searching_falcone">Searching for Falcone...</string>
+    <string name="falcone_found">Found Falcone at %1$s!</string>
+    <string name="falcone_not_found">Falcone not found.</string>
+    <string name="select_planet_vehicle">Please select 4 planets and vehicles</string>
 </resources>

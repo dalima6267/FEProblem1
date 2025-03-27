@@ -1,43 +1,38 @@
 package com.example.feproblem1.activity
 
+import android.content.Intent
 import android.os.Bundle
-import android.util.Log
-import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.example.feproblem1.service.ApiService
-import com.example.feproblem1.model.FindFalconeRequest
-import com.example.feproblem1.model.FindFalconeResponse
-import com.example.feproblem1.model.Planet
 import com.example.feproblem1.adapter.PlanetSelectionAdapter
-import com.example.feproblem1.model.TokenResponse
-import com.example.feproblem1.model.Vehicle
 import com.example.feproblem1.databinding.ActivityMainBinding
-import retrofit2.*
-import retrofit2.converter.gson.GsonConverterFactory
+import com.example.feproblem1.service.RetrofitClient
+import com.example.feproblem1.viewmodel.FindFalconeViewModel
+import com.example.feproblem1.viewmodel.FindFalconeViewModelFactory
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
-    private val apiService: ApiService by lazy {
-        Retrofit.Builder()
-            .baseUrl("https://findfalcone.geektrust.com/") // Updated API base URL
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(ApiService::class.java)
-    }
-
+    private lateinit var viewModel: FindFalconeViewModel
     private lateinit var planetAdapter: PlanetSelectionAdapter
-    private val selectedPlanets = mutableMapOf<Int, String>()
-    private val selectedVehicles = mutableMapOf<Int, String>()
+    private val selectedPlanets = mutableListOf<String>()
+    private val selectedVehicles = mutableListOf<String>()
+    private val travelTimes = mutableListOf<Int>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        val factory = FindFalconeViewModelFactory(RetrofitClient.apiService)
+        viewModel = ViewModelProvider(this, factory)[FindFalconeViewModel::class.java]
+
         setupRecyclerView()
-        loadPlanetsAndVehicles()
+        observeViewModel()
 
         binding.btnFindFalcone.setOnClickListener { findFalcone() }
     }
@@ -46,89 +41,63 @@ class MainActivity : AppCompatActivity() {
         binding.recyclerViewPlanets.layoutManager = LinearLayoutManager(this)
     }
 
-    private fun loadPlanetsAndVehicles() {
-        apiService.getPlanets().enqueue(object : Callback<List<Planet>> {
-            override fun onResponse(call: Call<List<Planet>>, response: Response<List<Planet>>) {
-                if (response.isSuccessful) {
-                    val planets = response.body()?.map { it.name } ?: emptyList()
-                    apiService.getVehicles().enqueue(object : Callback<List<Vehicle>> {
-                        override fun onResponse(call: Call<List<Vehicle>>, response: Response<List<Vehicle>>) {
-                            if (response.isSuccessful) {
-                                val vehicles = response.body()?.map { it.name } ?: emptyList()
-                                planetAdapter = PlanetSelectionAdapter(planets, vehicles) { position, planet, vehicle ->
-                                    selectedPlanets[position] = planet
-                                    selectedVehicles[position] = vehicle
+    private fun observeViewModel() {
+        lifecycleScope.launch {
+            viewModel.planets.collectLatest { planets ->
+                viewModel.vehicles.collectLatest { vehicles ->
+                    if (planets.isNotEmpty() && vehicles.isNotEmpty()) {
+                        planetAdapter = PlanetSelectionAdapter(planets, vehicles) { planet, vehicle, time, isSelected ->
+                            if (isSelected) {
+                                if (selectedPlanets.size < 4) {
+                                    selectedPlanets.add(planet)
+                                    selectedVehicles.add(vehicle)
+                                    travelTimes.add(time)
                                 }
-                                binding.recyclerViewPlanets.adapter = planetAdapter
                             } else {
-                                Log.e("VEHICLE_ERROR", "Error loading vehicles: ${response.errorBody()?.string()}")
+                                val index = selectedPlanets.indexOf(planet)
+                                if (index != -1) {
+                                    selectedPlanets.removeAt(index)
+                                    selectedVehicles.removeAt(index)
+                                    travelTimes.removeAt(index)
+                                }
                             }
+                            updateTotalTime()
                         }
-
-                        override fun onFailure(call: Call<List<Vehicle>>, t: Throwable) {
-                            Toast.makeText(this@MainActivity, "Failed to load vehicles", Toast.LENGTH_SHORT).show()
-                        }
-                    })
-                } else {
-                    Log.e("PLANET_ERROR", "Error loading planets: ${response.errorBody()?.string()}")
+                        binding.recyclerViewPlanets.adapter = planetAdapter
+                    }
                 }
             }
+        }
+    }
 
-            override fun onFailure(call: Call<List<Planet>>, t: Throwable) {
-                Toast.makeText(this@MainActivity, "Failed to load planets", Toast.LENGTH_SHORT).show()
-            }
-        })
+    private fun updateTotalTime() {
+        val totalTime = travelTimes.sum()
+        binding.tvTotalTime.text = "Total Time: $totalTime hours"
     }
 
     private fun findFalcone() {
         if (selectedPlanets.size < 4 || selectedVehicles.size < 4) {
-            Toast.makeText(this, "Please select 4 planets and vehicles", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Please select 4 planets and 4 vehicles", Toast.LENGTH_LONG).show()
             return
         }
 
-        binding.tvResult.visibility = View.VISIBLE
-        binding.tvResult.text = "Searching for Falcone..."
-
-        apiService.getToken().enqueue(object : Callback<TokenResponse> {
-            override fun onResponse(call: Call<TokenResponse>, response: Response<TokenResponse>) {
-                if (!response.isSuccessful || response.body() == null) {
-                    Log.e("TOKEN_ERROR", "Failed to get token: ${response.errorBody()?.string()}")
-                    binding.tvResult.text = "Failed to get token."
-                    return
-                }
-                val tokenResponse = response.body()
-                Log.d("TOKEN_SUCCESS", "Token received: ${tokenResponse?.token}")
-
-                tokenResponse?.let {
-                    val request = FindFalconeRequest(
-                        it.token,
-                        selectedPlanets.values.toList(),
-                        selectedVehicles.values.toList()
-                    )
-                    apiService.findFalcone(request).enqueue(object : Callback<FindFalconeResponse> {
-                        override fun onResponse(call: Call<FindFalconeResponse>, response: Response<FindFalconeResponse>) {
-                            if (response.isSuccessful) {
-                                val result = response.body()
-                                binding.tvResult.text = if (result?.status == "success")
-                                    "Found Falcone at ${result.planet_name}!" else "Falcone not found."
-                            } else {
-                                Log.e("FIND_ERROR", "Error finding Falcone: ${response.errorBody()?.string()}")
-                                binding.tvResult.text = "Failed to search for Falcone."
-                            }
-                        }
-
-                        override fun onFailure(call: Call<FindFalconeResponse>, t: Throwable) {
-                            Log.e("FIND_ERROR", "Request failed: ${t.message}")
-                            binding.tvResult.text = "Failed to search for Falcone."
-                        }
-                    })
+        lifecycleScope.launch {
+            viewModel.getToken()
+            viewModel.token.collectLatest { token ->
+                if (!token.isNullOrEmpty()) {
+                    viewModel.findFalcone(selectedPlanets.joinToString(","), selectedVehicles, selectedPlanets)
                 }
             }
+        }
 
-            override fun onFailure(call: Call<TokenResponse>, t: Throwable) {
-                Log.e("TOKEN_ERROR", "Request failed: ${t.message}")
-                binding.tvResult.text = "Failed to get token."
+        lifecycleScope.launch {
+            viewModel.falconeResult.collectLatest { result ->
+                val intent = Intent(this@MainActivity, ResultActivity::class.java)
+                intent.putExtra("result_status", result?.status)
+                intent.putExtra("planet_name", result?.planetName)
+                intent.putExtra("total_time", travelTimes.sum())
+                startActivity(intent)
             }
-        })
+        }
     }
 }
